@@ -1,0 +1,106 @@
+Fitness Club Database – ERD Description (Final)
+Purpose
+
+Логическая модель БД для системы Fitness Club Management.
+Описаны сущности (таблицы), атрибуты, PKFK, ограничения и связи. Дизайн нормализован до 3НФ.
+
+Entities
+1) Member
+
+PK member_id
+Поля full_name (NOT NULL), email (UNIQUE), phone, birth_date, status (NOT NULL activefrozenblocked), created_at (DEFAULT now()).
+Связи 1M Subscription, 1M Payment, MN Program через ProgramEnrollment, MN Session через SessionAttendance.
+
+2) Trainer
+
+PK trainer_id
+Поля full_name (NOT NULL), hire_date, phone, email (UNIQUE).
+Связи 1M Session, 1M TrainerQualification.
+
+3) TrainerQualification
+
+PK qualification_id
+FK trainer_id → Trainer(trainer_id) (ON DELETE CASCADE)
+Поля title (NOT NULL), issued_by, issued_at, level.
+Ограничение UNIQUE(trainer_id, title, issued_at).
+
+4) MembershipPlan
+
+PK plan_id
+Поля name (UNIQUE, NOT NULL), duration_months (0), price (=0), visits_per_week (=0; 0 = безлимит).
+
+5) Subscription (membership details)
+
+PK subscription_id
+FK member_id → Member (RESTRICT), plan_id → MembershipPlan (RESTRICT)
+Поля start_date (NOT NULL), end_date (NOT NULL, end_date = start_date), status (activeexpiredfrozen).
+Связи M1 к MembershipPlan, 1M к Payment.
+
+6) Program
+
+PK program_id
+Поля name (UNIQUE, NOT NULL), type (groupindividual), difficulty (beginnerintermediateadvanced), description.
+Связи 1M Session, MN с Member через ProgramEnrollment.
+
+7) ProgramEnrollment (MN Member ↔ Program)
+
+PK составной (member_id, program_id)
+FK member_id → Member (CASCADE), program_id → Program (CASCADE)
+Поля enrolled_at (DEFAULT now()), status (activecancelledcompleted).
+
+8) Session
+
+PK session_id
+FK program_id → Program (RESTRICT), trainer_id → Trainer (RESTRICT)
+Поля starts_at (NOT NULL), ends_at (NOT NULL, ends_at  starts_at), capacity (0), room.
+Индексуникальность UNIQUE (room, starts_at) — нет двух стартов в одном зале одновременно.
+Связи 1M SessionAttendance.
+
+9) SessionAttendance (MN Member ↔ Session)
+
+PK составной (session_id, member_id)
+FK session_id → Session (CASCADE), member_id → Member (CASCADE)
+Поля attended_at (NOT NULL), status (presentabsentlatecancelled).
+Опционально (строже) добавить program_id + FK на (member_id, program_id) из ProgramEnrollment, чтобы посещать можно было только «свою» программу.
+
+10) Payment
+
+PK payment_id
+FK member_id → Member (RESTRICT), subscription_id → Subscription (SET NULL)
+Поля amount (0), paid_at (DEFAULT now()), method (cardcashonline), note.
+
+11) Employee (recursive  hierarchical)
+
+PK employee_id
+Поля full_name (NOT NULL), role, manager_id → Employee(employee_id) (SET NULL).
+Опция в Trainer добавить employee_id UNIQUE FK → Employee(employee_id) (тренер как подтип сотрудника).
+
+Relationships (cardinalities)
+
+Member 1M Subscription; Subscription M1 MembershipPlan
+
+Member MN Program через ProgramEnrollment
+
+Program 1M Session
+
+Trainer 1M Session
+
+Member MN Session через SessionAttendance
+
+Trainer 1M TrainerQualification
+
+Member 1M Payment; Subscription 1M Payment
+
+Employee (manager_id) → Employee(employee_id) — рекурсивная 1M
+
+Implementation Notes (PostgreSQL)
+
+На все FK добавь индексы (PostgreSQL их не создаёт автоматически).
+
+Для связывающих таблиц (ProgramEnrollment, SessionAttendance) — ON DELETE CASCADE.
+
+Для справочниковродителей — RESTRICT или SET NULL (как указано выше).
+
+Для перечислимых полей (status, type, difficulty, method) — CHECK или ENUMсправочники.
+
+Соответствие 1НФ  2НФ  3НФ значения атомарны; нет частичных и транзитивных зависимостей.
